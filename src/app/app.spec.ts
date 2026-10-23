@@ -155,9 +155,8 @@ describe('App', () => {
     input.value = 'Lisboa';
     input.dispatchEvent(new Event('input'));
     fixture.detectChanges();
-    fixture.nativeElement.querySelector('form').dispatchEvent(
-      new Event('submit', { bubbles: true, cancelable: true }),
-    );
+    expect(http.match((req) => req.url === '/api/geocode')).toHaveLength(0);
+    await new Promise((resolve) => setTimeout(resolve, 350));
 
     const searchRequest = http.expectOne(
       (req) => req.url === '/api/geocode' && req.params.get('q') === 'Lisboa',

@@ -128,7 +128,6 @@
   color: #91a4b7;
 }
 
-.search-button,
 .current-location-button {
   min-height: 46px;
   padding: 0 16px;
@@ -142,12 +141,10 @@
   font-weight: 600;
 }
 
-.search-button:hover,
 .current-location-button:hover:not(:disabled) {
   background: rgb(99 222 212 / 20%);
 }
 
-.search-button:disabled,
 .current-location-button:disabled {
   cursor: wait;
   opacity: 0.6;
@@ -489,7 +486,6 @@
     font-size: 0.78rem;
   }
 
-  .search-button,
   .current-location-button,
   .map-location-button {
     flex: 1;

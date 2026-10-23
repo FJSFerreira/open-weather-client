@@ -1,6 +1,17 @@
-import { Component, ElementRef, HostListener, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { DatePipe, DecimalPipe } from '@angular/common';
+import { Subscription } from 'rxjs';
 import { registerLocaleData } from '@angular/common';
 import localePt from '@angular/common/locales/pt';
 
@@ -72,10 +83,12 @@ type WeatherTheme = 'clear-day' | 'clear-night' | 'cloudy' | 'rainy' | 'stormy' 
   styleUrl: './app.css',
   templateUrl: './app.html',
 })
-export class App implements OnInit {
+export class App implements OnDestroy, OnInit {
   private readonly http = inject(HttpClient);
   private mapInstance: import('leaflet').Map | null = null;
   private mapTrigger: HTMLElement | null = null;
+  private searchTimer: ReturnType<typeof setTimeout> | null = null;
+  private searchSubscription: Subscription | null = null;
 
   @ViewChild('mapDialog')
   private mapDialog?: ElementRef<HTMLElement>;
@@ -140,7 +153,13 @@ export class App implements OnInit {
     this.loadLocationWeather();
   }
 
+  ngOnDestroy(): void {
+    this.cancelLocationSearch();
+    this.destroyMap();
+  }
+
   protected loadLocationWeather(): void {
+    this.cancelLocationSearch();
     this.isLocating.set(true);
     this.selectedCoordinates.set(null);
     this.resetWeatherState();
@@ -181,22 +200,28 @@ export class App implements OnInit {
   }
 
   protected onSearchInput(event: Event): void {
+    const query = (event.target as HTMLInputElement).value.trim();
     this.searchQuery.set((event.target as HTMLInputElement).value);
-  }
-
-  protected searchLocations(event: Event): void {
-    event.preventDefault();
-    const query = this.searchQuery().trim();
+    this.cancelLocationSearch();
     this.locations.set([]);
     this.searchError.set('');
 
     if (query.length < 2) {
-      this.searchError.set('Introduza pelo menos 2 caracteres para pesquisar.');
       return;
     }
 
+    this.searchTimer = setTimeout(() => {
+      this.searchTimer = null;
+      this.searchLocations(query);
+    }, 300);
+  }
+
+  private searchLocations(query: string): void {
+    this.locations.set([]);
+    this.searchError.set('');
+
     this.isSearching.set(true);
-    this.http.get<LocationResult[]>('/api/geocode', {
+    this.searchSubscription = this.http.get<LocationResult[]>('/api/geocode', {
       params: new HttpParams().set('q', query),
     }).subscribe({
       next: (locations) => {
@@ -214,6 +239,7 @@ export class App implements OnInit {
   }
 
   protected selectLocation(location: LocationResult): void {
+    this.cancelLocationSearch();
     this.locations.set([]);
     this.searchQuery.set([location.name, location.state, location.country].filter(Boolean).join(', '));
     this.isLocating.set(false);
@@ -249,6 +275,7 @@ export class App implements OnInit {
       return;
     }
 
+    this.cancelLocationSearch();
     const coordinates = { latitude: selection.lat, longitude: selection.lng };
     this.selectedCoordinates.set(coordinates);
     this.searchQuery.set(`${selection.lat.toFixed(4)}, ${selection.lng.toFixed(4)}`);
@@ -410,6 +437,16 @@ export class App implements OnInit {
   private clearRequestErrors(): void {
     this.errorMessage.set('');
     this.forecastErrorMessage.set('');
+  }
+
+  private cancelLocationSearch(): void {
+    if (this.searchTimer !== null) {
+      clearTimeout(this.searchTimer);
+      this.searchTimer = null;
+    }
+    this.searchSubscription?.unsubscribe();
+    this.searchSubscription = null;
+    this.isSearching.set(false);
   }
 
   private setLocationError(message: string): void {

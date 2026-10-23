@@ -38,21 +38,22 @@
   </header>
 
   <section class="location-search" aria-label="Pesquisar localização">
-    <form class="search-form" (submit)="searchLocations($event)">
+    <div class="search-form">
       <label class="search-field">
         <span class="search-icon" aria-hidden="true">⌕</span>
         <span class="visually-hidden">Localidade</span>
         <input
           type="search"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-controls="location-search-results"
+          [attr.aria-expanded]="locations().length > 0"
           [value]="searchQuery()"
           (input)="onSearchInput($event)"
           placeholder="Pesquisar cidade ou localidade"
           autocomplete="off"
         />
       </label>
-      <button class="search-button" type="submit" [disabled]="isSearching()">
-        {{ isSearching() ? 'A pesquisar...' : 'Pesquisar' }}
-      </button>
       <button
         class="current-location-button"
         type="button"
@@ -66,14 +67,17 @@
         <span aria-hidden="true">⌖</span>
         Escolher no mapa
       </button>
-    </form>
+    </div>
 
+    @if (isSearching()) {
+      <p class="search-message" role="status">A pesquisar localidades...</p>
+    }
     @if (searchError()) {
       <p class="search-message" role="status">{{ searchError() }}</p>
     }
 
     @if (locations().length > 0) {
-      <ul class="location-results" aria-label="Resultados da pesquisa">
+      <ul id="location-search-results" class="location-results" aria-label="Resultados da pesquisa">
         @for (location of locations(); track location.lat + ',' + location.lon) {
           <li>
             <button type="button" (click)="selectLocation(location)">
