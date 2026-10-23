@@ -1,0 +1,269 @@
+<main
+  class="page"
+  [class.weather-clear-day]="backgroundTheme() === 'clear-day'"
+  [class.weather-clear-night]="backgroundTheme() === 'clear-night'"
+  [class.weather-cloudy]="backgroundTheme() === 'cloudy'"
+  [class.weather-rainy]="backgroundTheme() === 'rainy'"
+  [class.weather-stormy]="backgroundTheme() === 'stormy'"
+  [class.weather-snowy]="backgroundTheme() === 'snowy'"
+  [class.weather-foggy]="backgroundTheme() === 'foggy'"
+>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">☀</span>
+      <span>OpenWeather</span>
+    </div>
+    <div class="header-actions">
+      <button
+        class="refresh-button"
+        type="button"
+        (click)="refreshWeather()"
+        [disabled]="isLocating() || isLoading() || isForecastLoading()"
+        aria-label="Atualizar meteorologia"
+        title="Atualizar meteorologia"
+      >
+        <span aria-hidden="true">↻</span>
+        Atualizar
+      </button>
+      <span class="status" [class.loading]="isLocating() || isLoading()">
+        {{
+          isLocating()
+            ? 'A determinar localização...'
+            : isLoading()
+              ? (weather() ? 'A atualizar dados...' : 'A carregar dados...')
+              : 'Dados meteorológicos atuais'
+        }}
+      </span>
+    </div>
+  </header>
+
+  <section class="location-search" aria-label="Pesquisar localização">
+    <form class="search-form" (submit)="searchLocations($event)">
+      <label class="search-field">
+        <span class="search-icon" aria-hidden="true">⌕</span>
+        <span class="visually-hidden">Localidade</span>
+        <input
+          type="search"
+          [value]="searchQuery()"
+          (input)="onSearchInput($event)"
+          placeholder="Pesquisar cidade ou localidade"
+          autocomplete="off"
+        />
+      </label>
+      <button class="search-button" type="submit" [disabled]="isSearching()">
+        {{ isSearching() ? 'A pesquisar...' : 'Pesquisar' }}
+      </button>
+      <button
+        class="current-location-button"
+        type="button"
+        (click)="loadLocationWeather()"
+        [disabled]="isLocating()"
+      >
+        <span aria-hidden="true">◎</span>
+        Usar localização atual
+      </button>
+      <button class="map-location-button" type="button" (click)="openMapPicker()">
+        <span aria-hidden="true">⌖</span>
+        Escolher no mapa
+      </button>
+    </form>
+
+    @if (searchError()) {
+      <p class="search-message" role="status">{{ searchError() }}</p>
+    }
+
+    @if (locations().length > 0) {
+      <ul class="location-results" aria-label="Resultados da pesquisa">
+        @for (location of locations(); track location.lat + ',' + location.lon) {
+          <li>
+            <button type="button" (click)="selectLocation(location)">
+              <span class="location-result-name">{{ location.name }}</span>
+              <span class="location-result-detail">{{ locationDetail(location) }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
+  @if (isMapOpen()) {
+    <div class="map-modal-backdrop" (click)="handleMapBackdropClick($event)">
+      <section
+        #mapDialog
+        class="map-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="map-dialog-title"
+        aria-describedby="map-dialog-description"
+        tabindex="-1"
+      >
+        <header class="map-modal-header">
+          <div>
+            <p class="eyebrow">Selecionar localização</p>
+            <h2 id="map-dialog-title">Escolha um ponto no mapa</h2>
+            <p id="map-dialog-description" class="map-dialog-description">
+              Clique no mapa ou arraste o marcador para selecionar uma localização.
+            </p>
+          </div>
+          <button class="map-close-button" type="button" aria-label="Fechar mapa" (click)="closeMapPicker()">
+            ×
+          </button>
+        </header>
+        <div #locationMap class="location-map" aria-label="Mapa interativo; clique para selecionar coordenadas"></div>
+        <footer class="map-modal-footer">
+          <p>
+            @if (mapSelection(); as selected) {
+              {{ selected.lat | number:'1.4-4' }}, {{ selected.lng | number:'1.4-4' }}
+            } @else {
+              Clique no mapa para escolher um ponto.
+            }
+          </p>
+          <div>
+            <button class="map-cancel-button" type="button" (click)="closeMapPicker()">Cancelar</button>
+            <button class="map-confirm-button" type="button" [disabled]="!mapSelection()" (click)="confirmMapLocation()">
+              Usar esta localização
+            </button>
+          </div>
+        </footer>
+      </section>
+    </div>
+  }
+
+  <section class="content" aria-labelledby="page-title">
+    <div class="intro">
+      <p class="eyebrow">Meteorologia atual</p>
+      @if (weather(); as currentWeather) {
+        <h1 id="page-title">{{ currentWeather.name }}</h1>
+        <p class="description">{{ currentWeather.weather[0].description }}</p>
+        <div class="temperature">
+          <img
+            [src]="'https://openweathermap.org/img/wn/' + currentWeather.weather[0].icon + '@2x.png'"
+            [alt]="currentWeather.weather[0].description"
+            width="88"
+            height="88"
+          />
+          <span>{{ currentWeather.main.temp | number:'1.0-0' }}<span class="degree">°C</span></span>
+        </div>
+        <p class="feels-like">
+          Sensação térmica {{ currentWeather.main.feels_like | number:'1.0-0' }}°C
+        </p>
+      } @else {
+        <h1 id="page-title">O tempo na sua região</h1>
+        <p class="description">
+          Consulte as condições meteorológicas atuais para as coordenadas selecionadas.
+        </p>
+      }
+
+      @if (errorMessage()) {
+        <div class="error" role="alert">
+          <p>{{ errorMessage() }}</p>
+        </div>
+      } @else if (isLoading()) {
+        <p class="loading-message" role="status">
+          {{ isLocating() ? 'A determinar a localização atual...' : 'A obter a previsão meteorológica...' }}
+        </p>
+      }
+    </div>
+
+    <section class="weather-card" aria-label="Detalhes meteorológicos">
+      @if (weather(); as currentWeather) {
+        <div class="card-heading">
+          <div>
+            <h2>Condições atuais</h2>
+            <p>{{ currentWeather.name }}, {{ currentWeather.sys.country }}</p>
+          </div>
+          <span class="weather-symbol" aria-hidden="true">◌</span>
+        </div>
+
+        <div class="metrics">
+          <article class="metric">
+            <span class="metric-icon" aria-hidden="true">↓</span>
+            <div>
+              <p class="metric-label">Temperatura mínima</p>
+              <p class="metric-value">{{ currentWeather.main.temp_min | number:'1.0-0' }}°C</p>
+            </div>
+          </article>
+          <article class="metric">
+            <span class="metric-icon" aria-hidden="true">↑</span>
+            <div>
+              <p class="metric-label">Temperatura máxima</p>
+              <p class="metric-value">{{ currentWeather.main.temp_max | number:'1.0-0' }}°C</p>
+            </div>
+          </article>
+          <article class="metric">
+            <span class="metric-icon" aria-hidden="true">◉</span>
+            <div>
+              <p class="metric-label">Humidade</p>
+              <p class="metric-value">{{ currentWeather.main.humidity }}%</p>
+            </div>
+          </article>
+          <article class="metric">
+            <span class="metric-icon" aria-hidden="true">〰</span>
+            <div>
+              <p class="metric-label">Vento</p>
+              <p class="metric-value">{{ currentWeather.wind.speed | number:'1.0-1' }} m/s</p>
+            </div>
+          </article>
+          <article class="metric">
+            <span class="metric-icon" aria-hidden="true">◷</span>
+            <div>
+              <p class="metric-label">Última atualização</p>
+              <p class="metric-value">{{ currentWeather.dt * 1000 | date:'shortTime' }}</p>
+            </div>
+          </article>
+        </div>
+      } @else if (isLoading()) {
+        <div class="placeholder" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+      } @else {
+        <div class="empty-state">
+          <span class="empty-icon" aria-hidden="true">☁</span>
+          <p>Os detalhes do tempo serão apresentados aqui quando estiverem disponíveis.</p>
+        </div>
+      }
+    </section>
+  </section>
+
+  <section class="forecast-section" aria-labelledby="forecast-title">
+    <div class="forecast-heading">
+      <div>
+        <p class="eyebrow">Próximos dias</p>
+        <h2 id="forecast-title">Previsão para 5 dias</h2>
+      </div>
+      <span class="forecast-caption">Atualizações a cada 3 horas</span>
+    </div>
+
+    @if (forecastErrorMessage()) {
+      <div class="error forecast-error" role="alert">
+        <p>{{ forecastErrorMessage() }}</p>
+      </div>
+    }
+    @if (isForecastLoading() && forecast().length === 0) {
+      <p class="loading-message" role="status">A carregar a previsão para os próximos dias...</p>
+    } @else if (forecast().length > 0) {
+      <div class="forecast-grid">
+        @for (day of forecast(); track day.date) {
+          <article class="forecast-day">
+            <h3>{{ day.isToday ? 'Hoje' : (day.dateTimestamp | date:'EEE, d MMM':'UTC') }}</h3>
+            <img
+              [src]="'https://openweathermap.org/img/wn/' + day.icon + '@2x.png'"
+              [alt]="day.description"
+              width="72"
+              height="72"
+            />
+            <p class="forecast-description">{{ day.description }}</p>
+            <p class="forecast-temperatures">
+              <strong>{{ day.tempMax | number:'1.0-0' }}°</strong>
+              <span>{{ day.tempMin | number:'1.0-0' }}°</span>
+            </p>
+          </article>
+        } @empty {
+          <p class="loading-message">A previsão não está disponível.</p>
+        }
+      </div>
+    } @else if (!forecastErrorMessage()) {
+      <p class="loading-message">A previsão não está disponível.</p>
+    }
+  </section>
+</main>
